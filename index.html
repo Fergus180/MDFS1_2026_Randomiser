@@ -169,6 +169,24 @@
         trackImg.src = 'Track.png';
         rocksImg.src = 'Rocks.png';
 
+        function drawCountdown(n) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(trackImg, 0, 0);
+            const cx = canvas.width / 2, cy = canvas.height / 2;
+            const r = 200;
+            // Dark circle backdrop
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fill();
+            // Number
+            ctx.font = `bold ${r * 1.4}px 'Segoe UI', Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#f5c842';
+            ctx.fillText(String(n), cx, cy);
+        }
+
         document.getElementById('btn').addEventListener('click', () => {
             if (!rocksOff) return;
 
@@ -180,8 +198,23 @@
             }
             const pick = pool.slice(0, 2);
 
-            render(pick);
-            resultEl.textContent = `${pick[0].name}  &  ${pick[1].name}`;
+            const btn = document.getElementById('btn');
+            btn.disabled = true;
+            resultEl.textContent = '';
+
+            let count = 3;
+            drawCountdown(count);
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    drawCountdown(count);
+                } else {
+                    clearInterval(interval);
+                    render(pick);
+                    resultEl.textContent = `${pick[0].name}  &  ${pick[1].name}`;
+                    btn.disabled = false;
+                }
+            }, 1000);
         });
     </script>
 </body>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocks Corner Randomiser</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #111827;
+            color: #e5e7eb;
+            font-family: 'Segoe UI', system-ui, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 40px;
+            min-height: 100vh;
+            gap: 20px;
+        }
+
+        h1 {
+            font-size: clamp(1.4rem, 4vw, 2.2rem);
+            color: #f5c842;
+            letter-spacing: 0.03em;
+            text-align: center;
+        }
+
+        #canvas-wrapper {
+            width: 100%;
+            max-width: 960px;
+            border: 2px solid #f5c842;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 0 24px rgba(245, 200, 66, 0.25);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+        }
+
+        #btn {
+            background: #f5c842;
+            color: #111827;
+            border: none;
+            padding: 14px 52px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            box-shadow: 0 4px 14px rgba(245, 200, 66, 0.35);
+        }
+        #btn:hover { background: #ffd966; box-shadow: 0 4px 20px rgba(245, 200, 66, 0.55); }
+        #btn:active { transform: scale(0.97); }
+
+        #result {
+            font-size: 1.15rem;
+            color: #f5c842;
+            text-align: center;
+            min-height: 1.8em;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        #loading {
+            font-size: 1rem;
+            color: #9ca3af;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rocks Corner Randomiser</h1>
+
+    <div id="canvas-wrapper">
+        <canvas id="c"></canvas>
+    </div>
+
+    <button id="btn">Randomise!</button>
+    <div id="result">Press Randomise to pick 2 corners</div>
+    <div id="loading">Loading images&hellip;</div>
+
+    <script>
+        const canvas  = document.getElementById('c');
+        const ctx     = canvas.getContext('2d');
+        const resultEl  = document.getElementById('result');
+        const loadingEl = document.getElementById('loading');
+
+        // Inner corners of the light brown frame in Track.png native pixels (1850 × 1175).
+        // For each corner, the matching corner of the rocks image is anchored here so the
+        // rocks sit fully inside the track at that corner.
+        // Inner boundary: left x=497, right x=1381, top y=201, bottom y=1068
+        const CORNERS = [
+            { name: 'Top Left',     ix: 497,  iy: 201,  anchor: 'tl' },
+            { name: 'Top Right',    ix: 1381, iy: 201,  anchor: 'tr' },
+            { name: 'Bottom Left',  ix: 497,  iy: 1068, anchor: 'bl' },
+            { name: 'Bottom Right', ix: 1381, iy: 1068, anchor: 'br' },
+        ];
+
+        // Size of each rocks overlay in canvas pixels (native coords)
+        const ROCK_SIZE = 300;
+
+        const trackImg = new Image();
+        const rocksImg = new Image();
+        let rocksOff = null;
+        let ready = 0;
+
+        // Remove chroma-key green background from the Rocks image
+        function chromaKey(img) {
+            const off = document.createElement('canvas');
+            off.width  = img.naturalWidth;
+            off.height = img.naturalHeight;
+            const oc = off.getContext('2d');
+            oc.drawImage(img, 0, 0);
+            const id = oc.getImageData(0, 0, off.width, off.height);
+            const d  = id.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                // Green is dominant and clearly above red and blue
+                if (g > 80 && g > r * 1.4 && g > b * 1.4) {
+                    d[i + 3] = 0;
+                }
+            }
+            oc.putImageData(id, 0, 0);
+            return off;
+        }
+
+        function render(selected) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(trackImg, 0, 0);
+            if (!selected || !rocksOff) return;
+            const S = ROCK_SIZE;
+            for (const c of selected) {
+                // Anchor the matching corner of the rocks image to the inner corner of the frame
+                let dx, dy;
+                switch (c.anchor) {
+                    case 'tl': dx = c.ix;     dy = c.iy;     break; // rocks TL → frame inner TL
+                    case 'tr': dx = c.ix - S; dy = c.iy;     break; // rocks TR → frame inner TR
+                    case 'bl': dx = c.ix;     dy = c.iy - S; break; // rocks BL → frame inner BL
+                    case 'br': dx = c.ix - S; dy = c.iy - S; break; // rocks BR → frame inner BR
+                }
+                ctx.drawImage(rocksOff, dx, dy, S, S);
+            }
+        }
+
+        function onReady() {
+            if (++ready < 2) return;
+            loadingEl.style.display = 'none';
+            canvas.width  = trackImg.naturalWidth;
+            canvas.height = trackImg.naturalHeight;
+            rocksOff = chromaKey(rocksImg);
+            render(null);
+        }
+
+        function onError() {
+            loadingEl.textContent = 'Error loading images. Make sure Track.png and Rocks.png are in the same folder.';
+        }
+
+        loadingEl.style.display = 'block';
+        trackImg.onload  = onReady;
+        rocksImg.onload  = onReady;
+        trackImg.onerror = onError;
+        rocksImg.onerror = onError;
+        trackImg.src = 'Track.png';
+        rocksImg.src = 'Rocks.png';
+
+        document.getElementById('btn').addEventListener('click', () => {
+            if (!rocksOff) return;
+
+            // Fisher-Yates shuffle, pick 2 distinct corners
+            const pool = [...CORNERS];
+            for (let i = pool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pool[i], pool[j]] = [pool[j], pool[i]];
+            }
+            const pick = pool.slice(0, 2);
+
+            render(pick);
+            resultEl.textContent = `${pick[0].name}  &  ${pick[1].name}`;
+        });
+    </script>
+</body>
+</html>
